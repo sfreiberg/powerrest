@@ -1,0 +1,3 @@
+db-type = mysql
+db-connection = root@/deadsimpledns
+listen-address = :9090
