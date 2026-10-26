@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/jteeuwen/ini"
-
 	"flag"
+
+	"gopkg.in/ini.v1"
 )
 
 type Config struct {
@@ -14,20 +14,25 @@ type Config struct {
 
 func LoadConfig() (*Config, error) {
 	file := flag.String("config", "/etc/powerrest.conf", "Configuration file path")
-	config := &Config{}
-	confFile := ini.New()
 
 	flag.Parse() // parse command line flags
 
-	err := confFile.Load(*file)
+	return loadConfigFile(*file)
+}
+
+// loadConfigFile reads the INI style configuration file at path.
+func loadConfigFile(path string) (*Config, error) {
+	config := &Config{}
+
+	confFile, err := ini.Load(path)
 	if err != nil {
 		return config, err
 	}
 
 	sect := confFile.Section("")
-	config.DbType = sect.S("db-type", "mysql")
-	config.DbConn = sect.S("db-connection", "")
-	config.ListenAddr = sect.S("listen-address", ":8080")
+	config.DbType = sect.Key("db-type").MustString("mysql")
+	config.DbConn = sect.Key("db-connection").MustString("")
+	config.ListenAddr = sect.Key("listen-address").MustString(":8080")
 
 	return config, nil
 }

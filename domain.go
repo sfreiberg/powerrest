@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"time"
 )
 
@@ -30,11 +29,12 @@ func FindDomain(id int) (*Domain, error) {
 	return d, err
 }
 
-func AllDomains() []*Domain {
+func AllDomains() ([]*Domain, error) {
 	rows, err := db.Query("select id, name, type from domains")
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
+	defer rows.Close()
 
 	domains := []*Domain{}
 
@@ -46,13 +46,13 @@ func AllDomains() []*Domain {
 			&d.Type,
 		)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 
 		domains = append(domains, d)
 	}
 
-	return domains
+	return domains, rows.Err()
 }
 
 func (d *Domain) Create() error {

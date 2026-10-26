@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"time"
 )
 
@@ -34,11 +33,12 @@ func FindRecord(id int) (*Record, error) {
 	return r, err
 }
 
-func AllRecords() []*Record {
+func AllRecords() ([]*Record, error) {
 	rows, err := db.Query("SELECT id, domain_id, name, type, content, ttl, prio FROM records")
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
+	defer rows.Close()
 
 	records := []*Record{}
 
@@ -54,13 +54,13 @@ func AllRecords() []*Record {
 			&r.Priority,
 		)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 
 		records = append(records, r)
 	}
 
-	return records
+	return records, rows.Err()
 }
 
 func (r *Record) Create() error {

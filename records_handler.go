@@ -10,10 +10,14 @@ import (
 )
 
 func recordIndex(w http.ResponseWriter, r *http.Request) {
-	records := AllRecords()
+	records, err := AllRecords()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	enc := json.NewEncoder(w)
-	err := enc.Encode(records)
+	err = enc.Encode(records)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -25,7 +29,7 @@ func recordCreate(w http.ResponseWriter, r *http.Request) {
 	jsonDecoder := json.NewDecoder(r.Body)
 	err := jsonDecoder.Decode(&record)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -70,16 +74,21 @@ func recordUpdate(w http.ResponseWriter, r *http.Request) {
 
 	record, err := FindRecord(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err == sql.ErrNoRows {
+			http.NotFound(w, r)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
 	jsonDecoder := json.NewDecoder(r.Body)
 	err = jsonDecoder.Decode(&record)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	record.Id = id // the URL decides which row is updated, not the body
 
 	err = record.Update()
 	if err != nil {
