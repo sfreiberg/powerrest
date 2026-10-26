@@ -15,7 +15,8 @@ var (
 )
 
 func main() {
-	conf, err := LoadConfig()
+	var err error
+	conf, err = LoadConfig() // assign the package-level conf, don't shadow it
 	if err != nil {
 		log.Fatal(err)
 	}

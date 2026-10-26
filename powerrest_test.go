@@ -197,3 +197,60 @@ func TestRecordCRUD(t *testing.T) {
 		t.Fatalf("delete: code = %d", rec.Code)
 	}
 }
+
+func TestIndexDatabaseErrorReturns500(t *testing.T) {
+	// Previously AllDomains/AllRecords called log.Fatal, killing the whole
+	// server on any database error.
+	mock := setupDB(t)
+	mock.ExpectQuery("select id, name, type from domains").WillReturnError(sql.ErrConnDone)
+	mock.ExpectQuery("SELECT id, domain_id, name, type, content, ttl, prio FROM records").WillReturnError(sql.ErrConnDone)
+
+	if rec := call(domainIndex, "GET", "/v1/domains", "", nil); rec.Code != 500 {
+		t.Fatalf("domains: code = %d, want 500", rec.Code)
+	}
+	if rec := call(recordIndex, "GET", "/v1/records", "", nil); rec.Code != 500 {
+		t.Fatalf("records: code = %d, want 500", rec.Code)
+	}
+}
+
+func TestIndexScanErrorReturns500(t *testing.T) {
+	mock := setupDB(t)
+	mock.ExpectQuery("select id, name, type from domains").WillReturnRows(
+		sqlmock.NewRows([]string{"id", "name", "type"}).AddRow("not-a-number", "x", "NATIVE"))
+
+	if rec := call(domainIndex, "GET", "/v1/domains", "", nil); rec.Code != 500 {
+		t.Fatalf("code = %d, want 500", rec.Code)
+	}
+}
+
+func TestUpdateUsesIDFromURL(t *testing.T) {
+	mock := setupDB(t)
+	mock.ExpectQuery("SELECT id, name, type FROM domains WHERE id = ?").WithArgs(3).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "name", "type"}).AddRow(3, "old.com", "NATIVE"))
+	// The body tries to redirect the update to domain 99.
+	mock.ExpectExec("UPDATE domains SET name=? WHERE id=?").WithArgs("new.com", 3).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	rec := call(domainUpdate, "POST", "/v1/domains/3", `{"id":99,"name":"new.com"}`, map[string]string{"id": "3"})
+	if rec.Code != 200 {
+		t.Fatalf("code = %d, body = %s", rec.Code, rec.Body)
+	}
+}
+
+func TestUpdateMissingReturns404(t *testing.T) {
+	mock := setupDB(t)
+	mock.ExpectQuery("SELECT id, domain_id, name, type, content, ttl, prio FROM records WHERE id = ?").WithArgs(4).
+		WillReturnError(sql.ErrNoRows)
+
+	rec := call(recordUpdate, "POST", "/v1/records/4", `{"name":"x"}`, map[string]string{"id": "4"})
+	if rec.Code != 404 {
+		t.Fatalf("code = %d, want 404", rec.Code)
+	}
+}
+
+func TestCreateBadJSONReturns400(t *testing.T) {
+	setupDB(t)
+	if rec := call(domainCreate, "POST", "/v1/domains", `{not json`, nil); rec.Code != 400 {
+		t.Fatalf("code = %d, want 400", rec.Code)
+	}
+}

@@ -10,10 +10,14 @@ import (
 )
 
 func domainIndex(w http.ResponseWriter, r *http.Request) {
-	domains := AllDomains()
+	domains, err := AllDomains()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	enc := json.NewEncoder(w)
-	err := enc.Encode(domains)
+	err = enc.Encode(domains)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -25,7 +29,7 @@ func domainCreate(w http.ResponseWriter, r *http.Request) {
 	jsonDecoder := json.NewDecoder(r.Body)
 	err := jsonDecoder.Decode(&domain)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -70,16 +74,21 @@ func domainUpdate(w http.ResponseWriter, r *http.Request) {
 
 	domain, err := FindDomain(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err == sql.ErrNoRows {
+			http.NotFound(w, r)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
 	jsonDecoder := json.NewDecoder(r.Body)
 	err = jsonDecoder.Decode(&domain)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	domain.Id = id // the URL decides which row is updated, not the body
 
 	err = domain.Update()
 	if err != nil {
